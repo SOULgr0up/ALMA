@@ -184,6 +184,21 @@ button{font-family:inherit;cursor:pointer;}
 .priceCard .priceCol{text-align:right;flex-shrink:0;}
 .priceCard .val{color:var(--blue-deep);font-weight:700;font-size:18px;}
 .priceCard .choose{background:none;border:none;color:var(--gold);font-weight:700;font-size:12.5px;margin-top:6px;}
+.fnTabs{display:flex;gap:8px;overflow-x:auto;padding:14px 20px;border-bottom:1px solid var(--line);}
+.fnTabs .stab{white-space:nowrap;}
+.fnBody{max-width:900px;margin:0 auto;padding:22px 20px 80px;}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px;}
+.kpi{background:var(--gray-light);border-radius:14px;padding:16px;}
+.kpi b{display:block;font:500 22px 'Fraunces',serif;color:var(--blue-deep);}
+.kpi span{font-size:12px;color:var(--text-soft);}
+.card{border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px;}
+.card h3{font-size:17px;margin-bottom:10px;color:var(--heading);}
+.card p{font-size:13px;margin-bottom:8px;}
+.g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 12px;}
+.item{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line);font-size:13.5px;}
+.item small{display:block;color:var(--text-soft);font-size:12px;}
+.pill{font-size:11px;font-weight:700;background:var(--gold-soft);color:var(--blue-deep);border-radius:999px;padding:3px 10px;white-space:nowrap;}
+.mini{background:none;border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12px;color:var(--blue-deep);margin-left:6px;}
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer onload="initGoogleSignIn()"></script>
 </head>
@@ -289,13 +304,14 @@ button{font-family:inherit;cursor:pointer;}
 
     <div class="formPane" id="pane-funeraria">
       <h2>Conta de funerária</h2>
-      <p class="sub">Área dedicada para parceiros funerários.</p>
-      <div class="funeraria">Em breve. Estamos preparando um fluxo próprio para funerárias confirmarem falecimentos e liberarem entregas. Deixe seu contato e avisaremos quando estiver disponível.</div>
-      <div class="field" style="margin-top:16px"><label>E-mail de contato</label><input type="email" placeholder="contato@funeraria.com"></div>
-      <button class="submit" disabled style="opacity:0.5;cursor:not-allowed">Disponível em breve</button>
+      <p class="sub">Área dos parceiros funerários do Grupo Vida.</p>
+      <div class="subTabs" style="margin:0 0 18px;justify-content:center"><button class="stab active" id="fnT-in" onclick="fnMode('in')">Entrar</button><button class="stab" id="fnT-new" onclick="fnMode('new')">Cadastrar funerária</button></div>
+      <div id="fn-in"></div>
+      <div id="fn-new" style="display:none"></div>
     </div>
 
-    <p class="note">Ao continuar, você concorda que este é um protótipo local de demonstração.</p>
+    
+<p class="note">Ao continuar, você concorda que este é um protótipo local de demonstração.</p>
   </div>
 </section>
 
@@ -317,7 +333,6 @@ button{font-family:inherit;cursor:pointer;}
         <h2>Voz e Alma</h2>
         <div class="iconRow">
           <button class="upgradeBtn" onclick="openUpgrade()">✨ Mais espaço</button>
-          <button class="iconBtn" title="Perfil" onclick="openProfile()">👤</button>
         </div>
       </div>
       <div class="bigCards">
@@ -361,7 +376,6 @@ button{font-family:inherit;cursor:pointer;}
         <h2>Eu Sou</h2>
         <div class="iconRow">
           <button class="upgradeBtn" onclick="openUpgrade()">✨ Mais espaço</button>
-          <button class="iconBtn" title="Perfil" onclick="openProfile()">👤</button>
         </div>
       </div>
       <div class="bigCards">
@@ -484,6 +498,16 @@ button{font-family:inherit;cursor:pointer;}
       <button class="submit" style="background:transparent;color:#B0433E;border:1px solid var(--line);margin-top:10px" onclick="doLogout()">Sair da conta</button>
     </div>
   </div>
+</section>
+
+<!-- PORTAL DA FUNERÁRIA -->
+<section class="screen" id="fun">
+  <div class="dash-top">
+    <div class="logo" style="color:var(--blue-deep)">ALMA <small style="font-size:12px;color:var(--gold);font-family:Inter">Funerária</small></div>
+    <div style="display:flex;align-items:center;gap:14px"><span class="who" id="fnWho"></span><button onclick="fnLogout()">Sair</button></div>
+  </div>
+  <div class="fnTabs" id="fnTabs"></div>
+  <div class="fnBody" id="fnBody"></div>
 </section>
 
 <script>
@@ -990,6 +1014,124 @@ function deleteMemory(i){
   renderGallery();
 }
 function escapeHtml(s){return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+// ---------- PORTAL DA FUNERÁRIA (protótipo local) ----------
+const FUN_KEY='alma_funs',FUN_SES='alma_fun_session',PRECO=49.90,COM=0.30;
+const getFuns=()=>JSON.parse(lsGet(FUN_KEY,'{}')||'{}');
+const E=s=>escapeHtml(String(s==null?'':s));
+const $v=id=>document.getElementById(id).value.trim();
+const money=v=>'R$ '+v.toFixed(2).replace('.',',');
+const fi=(id,l,ph='',t='text',x='')=>`<div class="field"><label>${l}</label><input id="${id}" type="${t}" placeholder="${ph}" ${x}></div>`;
+const FN_TABS={painel:'Painel',clientes:'Clientes e vendas',obitos:'Óbitos e entregas',equipe:'Equipe',relatorios:'Relatórios',empresa:'Empresa'};
+const FN_ACCESS={Gestor:Object.keys(FN_TABS),Acolhimento:['painel','obitos'],Comercial:['painel','clientes','relatorios']};
+let fnTab='painel';
+function persist(f){const a=getFuns();a[f.id]=f;lsSet(FUN_KEY,JSON.stringify(a));}
+function ses(){const s=(lsGet(FUN_SES)||'').split('|');const f=getFuns()[s[0]];if(!f)return null;const m=f.equipe.find(x=>x.email===s[1]&&x.ativo);return m?{f,m}:null;}
+function activeLink(email){return Object.values(getFuns()).some(f=>f.equipe.some(m=>m.email===email&&m.ativo));}
+function validCnpj(c){c=c.replace(/\D/g,'');if(c.length!==14||/^(\d)\1+$/.test(c))return false;
+  const d=n=>{let s=0,p=n-7;for(let i=0;i<n;i++){s+=c[i]*p--;if(p<2)p=9;}const r=s%11;return r<2?0:11-r;};return d(12)==c[12]&&d(13)==c[13];}
+function fnMode(m){document.getElementById('fn-in').style.display=m==='in'?'block':'none';document.getElementById('fn-new').style.display=m==='new'?'block':'none';
+  document.getElementById('fnT-in').classList.toggle('active',m==='in');document.getElementById('fnT-new').classList.toggle('active',m==='new');hideMsg();}
+document.getElementById('fn-in').innerHTML=fi('fn_lmail','E-mail','seu@email.com','email')+fi('fn_lpass','Senha','Sua senha','password')+'<button class="submit" onclick="fnLogin()">→ Entrar no portal</button><p class="note">Cada pessoa usa sua conta individual. Não há senha compartilhada.</p><div class="divider">protótipo</div><button class="submit" style="background:transparent;color:var(--blue-deep);border:1px solid var(--line)" onclick="fnSeedTeste()">Criar conta de teste</button>';
+document.getElementById('fn-new').innerHTML=fi('fn_razao','Razão social')+fi('fn_fant','Nome fantasia')+fi('fn_cnpj','CNPJ','00.000.000/0000-00')+
+ '<div class="field-row">'+fi('fn_tel','Telefone','(00) 0000-0000','tel')+fi('fn_wpp','WhatsApp','(00) 00000-0000','tel')+'</div>'+
+ fi('fn_email','E-mail da funerária','contato@funeraria.com','email')+fi('fn_end','Endereço')+
+ '<div class="field-row">'+fi('fn_cid','Cidade')+fi('fn_uf','UF','UF','text','maxlength="2" style="text-transform:uppercase"')+fi('fn_cep','CEP','00000-000')+'</div>'+
+ '<h3 style="font-size:16px;margin:6px 0 12px;text-align:left">Gestor responsável</h3>'+fi('fn_gnome','Nome completo')+fi('fn_gmail','E-mail de acesso','gestor@funeraria.com','email')+
+ '<div class="field-row">'+fi('fn_gpass','Senha','','password')+fi('fn_gpass2','Confirmar senha','','password')+'</div>'+
+ '<button class="submit gold" onclick="fnSignup()">Enviar cadastro para aprovação</button><p class="note">O cadastro nasce como <b>pendente</b> até aprovação do Grupo ALMA.</p>';
+function fnSignup(){
+  const r={razao_social:$v('fn_razao'),nome_fantasia:$v('fn_fant'),cnpj:$v('fn_cnpj'),telefone:$v('fn_tel'),whatsapp:$v('fn_wpp'),email:$v('fn_email'),endereco:$v('fn_end'),cidade:$v('fn_cid'),estado:$v('fn_uf').toUpperCase(),cep:$v('fn_cep')};
+  const gn=$v('fn_gnome'),ge=$v('fn_gmail').toLowerCase(),p=document.getElementById('fn_gpass').value,p2=document.getElementById('fn_gpass2').value;
+  if(Object.values(r).some(v=>!v)||!gn||!ge||!p)return showMsg('Preencha todos os campos.','err');
+  if(!validCnpj(r.cnpj))return showMsg('CNPJ inválido.','err');
+  if(p!==p2)return showMsg('As senhas não coincidem.','err');
+  const all=Object.values(getFuns());
+  if(all.some(f=>f.cnpj.replace(/\D/g,'')===r.cnpj.replace(/\D/g,'')))return showMsg('Este CNPJ já está cadastrado.','err');
+  if(activeLink(ge)||getUsers()[ge])return showMsg('Este e-mail já está vinculado a uma conta. O e-mail é único por pessoa.','err');
+  persist({id:'f'+Date.now(),...r,codigo_funeraria:'ALMA-FUN-'+String(all.length+1).padStart(6,'0'),status:'pendente',data_aprovacao:null,data_encerramento:null,documentos:[],contrato_adesao_url:null,
+    equipe:[{id:'u1',nome:gn,email:ge,perfil:'Gestor',cargo:'Gestor',ativo:true,senha:hash(p)}],convites:[],clientes:[],obitos:[]});
+  showMsg('Cadastro enviado! Status: pendente de aprovação. Entre com o e-mail do gestor.','ok');fnMode('in');showMsg('Cadastro enviado! Status: pendente de aprovação. Entre com o e-mail do gestor.','ok');
+}
+function fnLogin(){const em=$v('fn_lmail').toLowerCase(),p=document.getElementById('fn_lpass').value;
+  for(const f of Object.values(getFuns())){const m=f.equipe.find(x=>x.email===em&&x.ativo&&x.senha===hash(p));
+    if(m){lsRemove(SESSION_KEY);lsSet(FUN_SES,f.id+'|'+em);fnTab='painel';show('fun');fnRender();return;}}
+  showMsg('E-mail ou senha incorretos, ou vínculo inativo.','err');}
+function fnLogout(){lsRemove(FUN_SES);goLanding();}
+function fnRender(t){
+  const s=ses();if(!s){fnLogout();return;}const {f,m}=s;const acc=FN_ACCESS[m.perfil];if(t)fnTab=t;if(!acc.includes(fnTab))fnTab='painel';
+  document.getElementById('fnWho').innerHTML='<b>'+E(f.nome_fantasia)+'</b> · '+E(m.nome)+' ('+m.perfil+')';
+  document.getElementById('fnTabs').innerHTML=acc.map(k=>`<button class="stab ${k===fnTab?'active':''}" onclick="fnRender('${k}')">${FN_TABS[k]}</button>`).join('');
+  const b=f.status!=='ativa'?`<div class="msg show err">Cadastro ${f.status}. Vendas e óbitos só ficam disponíveis após aprovação do Grupo ALMA.</div>`:'';
+  document.getElementById('fnBody').innerHTML=b+FN_VIEWS[fnTab](f,m);
+}
+const FN_ST=['SOLICITADO','DOCUMENTOS_RECEBIDOS','EM_VALIDACAO','VALIDADO','AUTORIZADO','LIBERADO','REJEITADO','CANCELADO'];
+const FN_VIEWS={
+painel:f=>{const pg=f.clientes.filter(c=>c.pago);const k=(n,l)=>`<div class="kpi"><b>${n}</b><span>${l}</span></div>`;
+  return `<div class="kpis">${k(f.clientes.length,'Clientes ALMA')}${k(pg.length,'Vendas pagas')}${k(money(pg.reduce((a,c)=>a+c.comissao,0)),'Comissão devida')}${k(f.obitos.filter(o=>!['LIBERADO','CANCELADO','REJEITADO'].includes(o.estado)).length,'Óbitos em andamento')}</div>
+  <div class="card"><h3>Link de origem das suas vendas</h3><p>A origem da venda é rastreada por link, código ou QR Code.</p><b>${E(location.href.split('?')[0])}?ref=${E(f.codigo_funeraria)}</b></div>`;},
+clientes:f=>{const off=f.status!=='ativa'?'disabled':'';
+  return `<div class="card"><h3>Novo cliente / venda</h3><div class="g2">${fi('cl_nome','Nome completo')}${fi('cl_cpf','CPF','000.000.000-00')}${fi('cl_tel','Telefone','','tel')}${fi('cl_email','E-mail','','email')}</div>
+  <div class="field"><label>Plano</label><select id="cl_plano"><option>Pacote Família anual — ${money(PRECO)}/ano</option><option disabled>Pacote Família 5 anos — preço pendente</option></select></div>
+  <button class="submit gold" ${off} onclick="fnAddCliente()">Registrar cliente</button></div>
+  <div class="card"><h3>Clientes ALMA (origem: funerária)</h3>${f.clientes.map(c=>`<div class="item"><div><b>${E(c.nome)}</b><small>${E(c.plano)} · ${c.pago?'paga em '+c.pagoEm.slice(0,10)+' · comissão '+money(c.comissao):'aguardando pagamento'}</small></div>${c.pago?'<span class="pill">Paga</span>':`<button class="mini" onclick="fnPay('${c.id}')">Marcar como paga</button>`}</div>`).join('')||'<p>Nenhum cliente ainda.</p>'}
+  <p style="margin-top:10px">Comissão de 30% só nasce quando a venda é efetivamente paga. A comissão do plano de 5 anos (40%) aguarda o preço final.</p></div>`;},
+obitos:f=>{const off=f.status!=='ativa'?'disabled':'';
+  return `<div class="card"><h3>Informar óbito</h3><div class="g2">${fi('ob_nome','Nome do falecido')}${fi('ob_cpf','CPF do falecido')}${fi('ob_data','Data do óbito','','date')}${fi('ob_cod','Código ALMA do cliente (opcional)')}${fi('sp_data','Data do sepultamento','','date')}${fi('sp_local','Local do sepultamento')}</div>
+  <button class="submit gold" ${off} onclick="fnAddObito()">Registrar óbito</button>
+  <p class="note">Óbito informado não significa conteúdo liberado: identidade → comprovação → autorização → entrega.</p></div>
+  <div class="card"><h3>Óbitos, sepultamentos e entregas</h3>${f.obitos.map(o=>`<div class="item"><div><b>${E(o.nome)}</b><small>Óbito ${E(o.data)} · Sepultamento ${E(o.sp_data||'—')} ${E(o.sp_local)}${o.docs.length?' · docs: '+E(o.docs.join(', ')):''}</small><small>${['SOLICITADO','DOCUMENTOS_RECEBIDOS'].includes(o.estado)?'Entrega: aguardando validação do Grupo ALMA':'Entrega: conforme autorização do Grupo ALMA'}</small></div><div><span class="pill">${o.estado}</span>${o.estado==='SOLICITADO'?`<button class="mini" onclick="fnDoc('${o.id}')">Enviar documento</button>`:''}${['SOLICITADO','DOCUMENTOS_RECEBIDOS'].includes(o.estado)?`<button class="mini" onclick="fnCancelObito('${o.id}')">Cancelar</button>`:''}</div></div>`).join('')||'<p>Nenhum óbito registrado.</p>'}
+  <p style="margin-top:10px">Validação, autorização e liberação são feitas pelo Grupo ALMA. A funerária não acessa o conteúdo privado, e o documento oficial nunca vai ao destinatário.</p></div>`;},
+equipe:(f,m)=>{const mem=f.equipe.map(x=>`<div class="item"><div><b>${E(x.nome)}</b><small>${E(x.cargo)} · ${E(x.email)}</small></div><div><span class="pill">${x.perfil} · ${x.ativo?'ativo':'inativo'}</span>${x.id===m.id?'':`<button class="mini" onclick="fnToggle('${x.id}')">${x.ativo?'Inativar':'Reativar'}</button>`}</div></div>`).join('');
+  const cv=f.convites.map(c=>`<div class="item"><div><b>${E(c.nome)}</b><small>${c.perfil} · ${E(c.email)} · enviado em ${c.data_envio}</small></div><div><span class="pill">${c.status}</span>${c.status==='enviado'?`<button class="mini" onclick="fnAccept('${c.id}')">Simular aceite</button><button class="mini" onclick="fnCancelInv('${c.id}')">Cancelar</button>`:''}</div></div>`).join('');
+  return `<div class="card"><h3>Convidar funcionário</h3><div class="g2">${fi('iv_nome','Nome')}${fi('iv_email','E-mail','','email')}${fi('iv_tel','Telefone','','tel')}${fi('iv_cpf','CPF')}${fi('iv_nasc','Data de nascimento','','date')}${fi('iv_cargo','Cargo / função')}</div>
+  <div class="field"><label>Perfil</label><select id="iv_perfil"><option>Acolhimento</option><option>Comercial</option><option disabled>Gestor — exige ação do Grupo ALMA</option></select></div>
+  <button class="submit gold" onclick="fnInvite()">Enviar convite</button><p class="note">Conta individual por pessoa e apenas um vínculo ativo por vez.</p></div>
+  <div class="card"><h3>Equipe</h3>${mem}</div><div class="card"><h3>Convites</h3>${cv||'<p>Nenhum convite.</p>'}</div>`;},
+relatorios:f=>{const g={};f.clientes.filter(c=>c.pago).forEach(c=>{const k=c.pagoEm.slice(0,7);g[k]=g[k]||{n:0,v:0,c:0};g[k].n++;g[k].v+=c.valor;g[k].c+=c.comissao;});
+  return `<div class="card"><h3>Vendas pagas e comissões por mês</h3>${Object.keys(g).sort().reverse().map(k=>`<div class="item"><div><b>${k.slice(5)}/${k.slice(0,4)}</b><small>${g[k].n} venda(s) · ${money(g[k].v)}</small></div><b>${money(g[k].c)}</b></div>`).join('')||'<p>Nenhuma venda paga ainda.</p>'}
+  <p style="margin-top:10px">Fechamento no último dia do mês, após o relatório da funerária e a conferência com o sistema. Não há adiantamento de capital.</p></div>`;},
+empresa:f=>{const d=(l,v)=>`<div class="item"><span>${l}</span><b>${E(v||'—')}</b></div>`;
+  return `<div class="card"><h3>Dados da funerária</h3>${d('Código institucional',f.codigo_funeraria)}${d('Status',f.status)}${d('Razão social',f.razao_social)}${d('Nome fantasia',f.nome_fantasia)}${d('CNPJ',f.cnpj)}${d('Telefone',f.telefone)}${d('WhatsApp',f.whatsapp)}${d('E-mail',f.email)}${d('Endereço',f.endereco+', '+f.cidade+'/'+f.estado+' · CEP '+f.cep)}${d('Aprovação',f.data_aprovacao)}${d('Contrato de adesão',f.contrato_adesao_url||'Pendente (contrato jurídico em definição)')}
+  ${f.status==='pendente'?'<button class="submit" style="margin-top:12px" onclick="fnApprove()">Simular aprovação do Grupo ALMA (só protótipo)</button>':''}</div>
+  <div class="card"><h3>Documentos</h3>${f.documentos.map(x=>`<div class="item"><div><b>${E(x.nome)}</b><small>${E(x.arquivo)}</small></div><span class="pill">${x.status}</span></div>`).join('')||'<p>Nenhum documento enviado. O checklist definitivo ainda será definido.</p>'}
+  <label class="submit" style="display:block;text-align:center;cursor:pointer;margin-top:12px">Enviar documento<input type="file" style="display:none" onchange="fnUpDoc(event)"></label></div>`;}
+};
+function fnUpDoc(ev){const file=ev.target.files[0];if(!file)return;const nome=prompt('Nome/tipo do documento:',file.name);if(!nome)return;const {f}=ses();f.documentos.push({nome,tipo:'outro',arquivo:file.name,status:'enviado',obrigatorio:false});persist(f);fnRender();}
+function fnApprove(){const {f}=ses();f.status='ativa';f.data_aprovacao=new Date().toLocaleDateString('pt-BR');persist(f);fnRender();}
+function fnAddCliente(){const {f}=ses();const c={id:'c'+Date.now(),nome:$v('cl_nome'),cpf:$v('cl_cpf'),tel:$v('cl_tel'),email:$v('cl_email'),plano:'Pacote Família anual',valor:PRECO,origem_cadastro:'funeraria',pago:false,comissao:0};
+  if(!c.nome||c.cpf.replace(/\D/g,'').length!==11)return alert('Informe nome e CPF válido (11 dígitos).');f.clientes.unshift(c);persist(f);fnRender();}
+function fnPay(id){const {f}=ses();const c=f.clientes.find(x=>x.id===id);c.pago=true;c.pagoEm=new Date().toISOString();c.comissao=+(c.valor*COM).toFixed(2);persist(f);fnRender();}
+function fnAddObito(){const {f}=ses();const o={id:'o'+Date.now(),nome:$v('ob_nome'),cpf:$v('ob_cpf'),data:$v('ob_data'),cod:$v('ob_cod'),sp_data:$v('sp_data'),sp_local:$v('sp_local'),docs:[],estado:'SOLICITADO'};
+  if(!o.nome||!o.cpf||!o.data)return alert('Informe nome, CPF e data do óbito.');f.obitos.unshift(o);persist(f);fnRender();}
+function fnDoc(id){const n=prompt('Documento enviado (ex.: certidão de óbito):');if(!n)return;const {f}=ses();const o=f.obitos.find(x=>x.id===id);o.docs.push(n);o.estado='DOCUMENTOS_RECEBIDOS';persist(f);fnRender();}
+function fnCancelObito(id){if(!confirm('Cancelar este registro de óbito?'))return;const {f}=ses();f.obitos.find(x=>x.id===id).estado='CANCELADO';persist(f);fnRender();}
+function fnInvite(){const {f}=ses();const c={id:'c'+Date.now(),nome:$v('iv_nome'),email:$v('iv_email').toLowerCase(),telefone:$v('iv_tel'),cpf:$v('iv_cpf'),nascimento:$v('iv_nasc'),cargo:$v('iv_cargo'),perfil:$v('iv_perfil'),status:'enviado',data_envio:new Date().toLocaleDateString('pt-BR')};
+  if(!c.nome||!c.email||!c.cpf||!c.nascimento||!c.cargo)return alert('Preencha nome, e-mail, CPF, nascimento e cargo.');
+  if(activeLink(c.email))return alert('Esta pessoa já possui vínculo funerário ativo. Só é permitido um por vez.');
+  if(getUsers()[c.email])return alert('Este e-mail já pertence a uma conta de usuário final.');
+  f.convites.unshift(c);persist(f);fnRender();}
+function fnAccept(id){const {f}=ses();const c=f.convites.find(x=>x.id===id);const p=prompt('Simulação: o funcionário cria sua senha de acesso:');if(!p)return;
+  if(activeLink(c.email))return alert('Esta pessoa já possui vínculo ativo.');
+  c.status='aceito';c.data_aceite=new Date().toLocaleDateString('pt-BR');f.equipe.push({id:'u'+Date.now(),nome:c.nome,email:c.email,perfil:c.perfil,cargo:c.cargo,ativo:true,senha:hash(p)});persist(f);fnRender();}
+function fnCancelInv(id){const {f}=ses();f.convites.find(x=>x.id===id).status='cancelado';persist(f);fnRender();}
+function fnToggle(uid){const {f,m}=ses();const x=f.equipe.find(y=>y.id===uid);
+  if(x.id===m.id)return alert('O gestor não altera o próprio perfil.');
+  if(!x.ativo&&activeLink(x.email))return alert('Esta pessoa já tem vínculo ativo em outra funerária.');
+  x.ativo=!x.ativo;persist(f);fnRender();}
+
+function fnSeedTeste(){
+  const all=getFuns();const PW='Teste@123';
+  if(!Object.values(all).some(f=>f.cnpj==='11.222.333/0001-81')){
+    const mk=(id,nome,email,perfil)=>({id,nome,email,perfil,cargo:perfil,ativo:true,senha:hash(PW)});
+    persist({id:'f_teste',razao_social:'Funerária Teste ALMA Ltda',nome_fantasia:'Funerária Teste',cnpj:'11.222.333/0001-81',telefone:'(64) 3000-0000',whatsapp:'(64) 90000-0000',email:'contato@funerariateste.com.br',endereco:'Rua de Teste, 100',cidade:'Itumbiara',estado:'GO',cep:'75500-000',
+      codigo_funeraria:'ALMA-FUN-'+String(Object.keys(all).length+1).padStart(6,'0'),status:'ativa',data_aprovacao:new Date().toLocaleDateString('pt-BR'),data_encerramento:null,documentos:[],contrato_adesao_url:null,
+      equipe:[mk('u1','Gestor Teste','gestor@funerariateste.com.br','Gestor'),mk('u2','Acolhimento Teste','acolhimento@funerariateste.com.br','Acolhimento'),mk('u3','Comercial Teste','comercial@funerariateste.com.br','Comercial')],convites:[],clientes:[],obitos:[]});
+  }
+  document.getElementById('fn_lmail').value='gestor@funerariateste.com.br';document.getElementById('fn_lpass').value=PW;
+  showMsg('Conta de teste pronta. Clique em "Entrar no portal". Logins: gestor@, acolhimento@ e comercial@funerariateste.com.br — senha Teste@123.','ok');
+}
+window.addEventListener('load',()=>{if(ses()){show('fun');fnRender();}});
 </script>
 </body>
 </html>
