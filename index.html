@@ -906,29 +906,53 @@ function switchGalTab(name){
   document.getElementById('galFotos').style.display=name==='foto'?'grid':'none';
   document.getElementById('galVideos').style.display=name==='video'?'grid':'none';
 }
+// ---------- envio para o backend (Google Drive) ----------
+const UPLOAD_URL='/upload';
+let savingMemory=false;
+async function dataUrlToBlob(u){return (await fetch(u)).blob();}
+function makeThumb(dataUrl){ // miniatura leve da foto, só para a galeria local
+  return new Promise(res=>{const im=new Image();im.onload=()=>{const k=Math.min(1,360/Math.max(im.width,im.height));
+    const c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);
+    c.getContext('2d').drawImage(im,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',0.7));};im.onerror=()=>res(null);im.src=dataUrl;});
+}
+async function uploadToBackend(blob,type,para,dono){
+  const fd=new FormData();
+  fd.append('file',blob,type==='photo'?'foto':'video');
+  fd.append('para',para);fd.append('dono',dono);
+  const r=await fetch(UPLOAD_URL,{method:'POST',body:fd});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok||!j.ok)throw new Error(j.error||'Falha no envio ('+r.status+').');
+  return j;
+}
 async function saveMemory(){
-  if(!pendingCapture)return;
+  if(!pendingCapture||savingMemory)return;
   if(limitReached(pendingCapture.type)){closeMeta();openUpgrade(pendingCapture.type);return;}
   const to=document.getElementById('metaTo').value.trim();
   const email=document.getElementById('metaEmail').value.trim();
   const note=document.getElementById('metaNote').value.trim();
   if(!to||!email){alert('Diga para quem é a mensagem e o e-mail de entrega.');return;}
-  const key=await ensureKey();
-  const userEmail=lsGet(SESSION_KEY);
-  const list=getMemories(userEmail);
-  const entry={type:pendingCapture.type,to,email,note,date:new Date().toLocaleDateString('pt-BR')};
-  if(key){
-    const {ivB64,ctB64}=await encryptStr(key,pendingCapture.url);
-    entry.encrypted=true;entry.ivB64=ivB64;entry.ctB64=ctB64;
-  }else{
-    entry.encrypted=false;entry.url=pendingCapture.url;
+  savingMemory=true;document.body.style.cursor='progress';
+  const saveBtn=document.querySelector('#metaSheet .submit');const oldTxt=saveBtn.textContent;saveBtn.textContent='Enviando…';saveBtn.disabled=true;
+  try{
+    const userEmail=lsGet(SESSION_KEY);
+    const blob=await dataUrlToBlob(pendingCapture.url);
+    const up=await uploadToBackend(blob,pendingCapture.type,to,userEmail);
+    const entry={type:pendingCapture.type,to,email,note,date:new Date().toLocaleDateString('pt-BR'),driveId:up.id};
+    if(pendingCapture.type==='photo'){
+      const thumb=await makeThumb(pendingCapture.url);
+      const key=await ensureKey();
+      if(thumb&&key){const {ivB64,ctB64}=await encryptStr(key,thumb);entry.encrypted=true;entry.ivB64=ivB64;entry.ctB64=ctB64;}
+      else if(thumb){entry.encrypted=false;entry.url=thumb;}
+    }
+    const list=getMemories(userEmail);list.unshift(entry);
+    try{setMemories(userEmail,list);}catch(e){alert('A mídia foi enviada, mas não coube o registro local. Libere espaço no navegador.');return;}
+    document.getElementById('metaTo').value='';document.getElementById('metaEmail').value='';document.getElementById('metaNote').value='';
+    closeMeta();discardCapture();renderGallery();
+  }catch(e){
+    alert('Não foi possível enviar para a ALMA agora. '+e.message+' Tente novamente.');
+  }finally{
+    savingMemory=false;document.body.style.cursor='';saveBtn.textContent=oldTxt;saveBtn.disabled=false;
   }
-  list.unshift(entry);
-  try{setMemories(userEmail,list);}catch(e){alert('Este vídeo é grande demais para o armazenamento local do navegador. Tente um vídeo mais curto ou uma foto.');list.shift();return;}
-  document.getElementById('metaTo').value='';document.getElementById('metaEmail').value='';document.getElementById('metaNote').value='';
-  closeMeta();
-  discardCapture();
-  renderGallery();
 }
 async function renderGallery(){
   const userEmail=lsGet(SESSION_KEY);
@@ -937,6 +961,11 @@ async function renderGallery(){
   if(!fotos||!videos)return;
   async function card(m,i){
     let src=m.url;
+    if(m.type==='video'||(!m.encrypted&&!m.url&&m.driveId)){
+      return `<div class="galCard"><div class="empty">🎞️ Guardado com segurança na nuvem da ALMA</div>
+      <div class="meta"><b>Para ${escapeHtml(m.to)}</b><span>${m.date}</span><span>${escapeHtml(m.note||'sem observação')}</span></div>
+      <button class="del" onclick="deleteMemory(${i})">Excluir</button></div>`;
+    }
     if(m.encrypted){
       if(!activeKey)return `<div class="galCard"><div class="empty">🔒 Protegido por senha. Abra a aba "Eu Sou" para desbloquear.</div></div>`;
       try{src=await decryptStr(activeKey,m.ivB64,m.ctB64);}catch(e){return `<div class="galCard"><div class="empty">🔒 Não foi possível descriptografar.</div></div>`;}
