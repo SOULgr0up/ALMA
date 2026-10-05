@@ -3,3 +3,4 @@ flask-cors>=4.0
 gunicorn>=22.0
 google-api-python-client>=2.120
 google-auth>=2.29
+google-auth-oauthlib>=1.2
