@@ -6,12 +6,12 @@ Variáveis de ambiente (Render):
   GOOGLE_DRIVE_FOLDER_ID                    ID da pasta de destino
 Opcionais:
   OAUTH_REDIRECT_URI   padrão: https://alma-25e9.onrender.com/oauth2callback
-  SETUP_TOKEN          liga as rotas de autorização (/oauth2). Sem ela, ficam DESLIGADAS.
+  SETUP_TOKEN          se definida, /oauth2 exige ?key=<SETUP_TOKEN>. Sem ela, as rotas ficam ABERTAS.
   ALLOWED_ORIGINS      origens CORS, separadas por vírgula
   MAX_UPLOAD_MB        limite por arquivo (padrão 100)
 
-Para gerar o refresh token: defina SETUP_TOKEN, abra /oauth2?key=<SETUP_TOKEN>,
-autorize, copie o token para GOOGLE_REFRESH_TOKEN e REMOVA a SETUP_TOKEN.
+Para gerar o refresh token: abra /oauth2, autorize e copie o token para
+GOOGLE_REFRESH_TOKEN. Depois, defina SETUP_TOKEN para trancar as rotas.
 """
 import hmac
 import logging
@@ -104,6 +104,11 @@ def _setup_token():
     return os.environ.get("SETUP_TOKEN") or None
 
 
+def _state_serializer():
+    secret = _setup_token() or os.environ.get("GOOGLE_CLIENT_SECRET") or ""
+    return URLSafeTimedSerializer(secret, salt="alma-oauth")
+
+
 @app.get("/")
 def home():
     return send_from_directory(ROOT_DIR, "index.html")
@@ -119,22 +124,17 @@ def health():
 @app.get("/oauth2")
 def oauth2():
     token = _setup_token()
-    if not token:  # rotas de setup desligadas por padrão
-        return jsonify(ok=False, error="Não encontrado."), 404
-    if not hmac.compare_digest(request.args.get("key", ""), token):
+    if token and not hmac.compare_digest(request.args.get("key", ""), token):
         return jsonify(ok=False, error="Chave inválida."), 403
-    state = URLSafeTimedSerializer(token, salt="alma-oauth").dumps("ok")
+    state = _state_serializer().dumps("ok")
     url, _ = make_flow().authorization_url(access_type="offline", prompt="consent", state=state)
     return redirect(url)
 
 
 @app.get("/oauth2callback")
 def oauth2callback():
-    token = _setup_token()
-    if not token:
-        return jsonify(ok=False, error="Não encontrado."), 404
     try:  # valida o "state" (anti-CSRF) assinado em /oauth2, válido por 10 min
-        URLSafeTimedSerializer(token, salt="alma-oauth").loads(request.args.get("state", ""), max_age=600)
+        _state_serializer().loads(request.args.get("state", ""), max_age=600)
     except BadSignature:
         return jsonify(ok=False, error="Estado inválido ou expirado. Recomece em /oauth2."), 400
     if request.args.get("error"):
@@ -150,7 +150,7 @@ def oauth2callback():
     if not refresh:
         return jsonify(ok=False, error="O Google não enviou refresh token. Recomece em /oauth2."), 400
     resp = jsonify(ok=True, refresh_token=refresh,
-                   proximo_passo="Copie para GOOGLE_REFRESH_TOKEN no Render e remova SETUP_TOKEN.")
+                   proximo_passo="Copie para GOOGLE_REFRESH_TOKEN no Render.")
     resp.headers["Cache-Control"] = "no-store"
     return resp
 
