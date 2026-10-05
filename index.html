@@ -337,11 +337,11 @@ button{font-family:inherit;cursor:pointer;}
       </div>
       <div class="bigCards">
         <button class="bigCard" onclick="openCapture('photo')">
-          <div class="bigCard-text"><span class="kicker">Ateliê</span><h3>Ateliê</h3><p>Deixe fotografias pra quem você ama.</p><span class="limitBadge" id="countAtelie">0/5 fotos usadas</span></div>
+          <div class="bigCard-text"><span class="kicker">Ateliê</span><h3>Ateliê</h3><p>Deixe fotografias pra quem você ama.</p><span class="limitBadge" id="countAtelie">0/3 fotos usadas</span></div>
           <div class="bigCard-art gold">📷</div>
         </button>
         <button class="bigCard" onclick="openCapture('video')">
-          <div class="bigCard-text"><span class="kicker">Estúdio</span><h3>Estúdio</h3><p>Guarde vídeos pra quem você ama.</p><span class="limitBadge" id="countEstudio">0/5 vídeos usados</span></div>
+          <div class="bigCard-text"><span class="kicker">Estúdio</span><h3>Estúdio</h3><p>Guarde vídeos pra quem você ama.</p><span class="limitBadge" id="countEstudio">🔒 Exige plano pago</span></div>
           <div class="bigCard-art blue">🎥</div>
         </button>
       </div>
@@ -380,11 +380,11 @@ button{font-family:inherit;cursor:pointer;}
       </div>
       <div class="bigCards">
         <button class="bigCard" onclick="showEusouGallery('foto')">
-          <div class="bigCard-text"><span class="kicker">Fotografias</span><h3>Galeria</h3><p>Guarde suas fotografias acompanhadas de uma mensagem.</p><span class="limitBadge" id="countGaleria">0/5 fotos usadas</span></div>
+          <div class="bigCard-text"><span class="kicker">Fotografias</span><h3>Galeria</h3><p>Guarde suas fotografias acompanhadas de uma mensagem.</p><span class="limitBadge" id="countGaleria">0/3 fotos usadas</span></div>
           <div class="bigCard-art gold">🖼️</div>
         </button>
         <button class="bigCard" onclick="showEusouGallery('video')">
-          <div class="bigCard-text"><span class="kicker">Meus vídeos</span><h3>Videoteca</h3><p>Guarde vídeos que fazem parte da sua história e do seu legado.</p><span class="limitBadge" id="countVideoteca">0/5 vídeos usados</span></div>
+          <div class="bigCard-text"><span class="kicker">Meus vídeos</span><h3>Videoteca</h3><p>Guarde vídeos que fazem parte da sua história e do seu legado.</p><span class="limitBadge" id="countVideoteca">🔒 Exige plano pago</span></div>
           <div class="bigCard-art blue">🎬</div>
         </button>
       </div>
@@ -427,7 +427,7 @@ button{font-family:inherit;cursor:pointer;}
   <div class="sheet" id="upgradeSheet">
     <div class="sheetCard">
       <h3>Ampliar seu espaço na ALMA</h3>
-      <p style="margin-bottom:16px" id="upgradeMsg">Cada pessoa pode guardar até 5 fotos e 5 vídeos no plano gratuito. Escolha abaixo como quer ampliar seu espaço.</p>
+      <p style="margin-bottom:16px" id="upgradeMsg">O plano gratuito guarda até 3 fotos. Vídeos só ficam disponíveis depois que você contrata um plano.</p>
       <div class="priceTabs">
         <button class="ptab active" id="ptab-photo" onclick="switchPriceTab('photo')">Ateliê</button>
         <button class="ptab" id="ptab-video" onclick="switchPriceTab('video')">Estúdio</button>
@@ -444,6 +444,7 @@ button{font-family:inherit;cursor:pointer;}
         </div>
       </div>
       <div class="priceGroup" id="pgroup-video">
+        <p style="font-size:12.5px">Vídeos só ficam disponíveis depois de contratar um destes planos.</p>
         <div class="priceCard">
           <div><h4>Vídeo individual</h4><p>Guarde um vídeo preparado especialmente para uma pessoa.</p><span class="sub2">1 vídeo</span></div>
           <div class="priceCol"><div class="val">R$ 25,00</div><button class="choose" onclick="confirmUpgrade('vídeo individual',25)">Escolher →</button></div>
@@ -577,7 +578,7 @@ async function ensureKey(){
   activeKey=await deriveKey(pass,u.saltB64);
   return activeKey;
 }
-const MAX_PHOTOS=5, MAX_VIDEOS=5;
+const MAX_PHOTOS=3, MAX_VIDEOS=0; // vídeos só existem após comprar plano
 function currentUser(){const users=getUsers();return users[lsGet(SESSION_KEY)]||{};}
 function getMaxPhotos(){return MAX_PHOTOS+(currentUser().extraPhotos||0);}
 function getMaxVideos(){return MAX_VIDEOS+(currentUser().extraVideos||0);}
@@ -789,6 +790,7 @@ async function toggleRecord(){
   if(mediaRecorder&&mediaRecorder.state==='recording'){
     mediaRecorder.stop();return;
   }
+  if(limitReached('video')){openUpgrade('video');return;}
   const s=await ensureStream();if(!s)return;
   chunks=[];
   mediaRecorder=new MediaRecorder(s);
@@ -829,6 +831,7 @@ function handleFileUpload(event,type){
   const file=event.target.files[0];
   event.target.value='';
   if(!file)return;
+  if(type==='video'&&limitReached('video')){openUpgrade('video');return;}
   if(type==='photo'&&!file.type.startsWith('image/')){alert('Selecione um arquivo de imagem válido.');return;}
   if(type==='video'&&!file.type.startsWith('video/')){alert('Selecione um arquivo de vídeo válido.');return;}
   if(type==='video'){
@@ -894,6 +897,7 @@ function showEusouHome(){
   document.getElementById('eusouBack').style.display='none';
 }
 async function showEusouGallery(type){
+  if(type==='video'&&getMaxVideos()===0&&countMemoriesByType('video')===0){openUpgrade('video');return;}
   document.getElementById('eusouHome').style.display='none';
   document.getElementById('eusouGallery').style.display='block';
   document.getElementById('eusouBack').style.display='flex';
@@ -995,6 +999,7 @@ function updateCounts(photoCount,videoCount){
   const setBadge=(id,count,max,unit)=>{
     const el=document.getElementById(id);
     if(!el)return;
+    if(max===0&&count===0){el.textContent='🔒 Exige plano pago';return;}
     el.textContent=count+'/'+max+' '+unit+(count>=max?' · limite atingido':' usad'+(unit==='fotos'?'as':'os'));
     el.classList.toggle('full',count>=max);
   };
@@ -1006,11 +1011,9 @@ function updateCounts(photoCount,videoCount){
 }
 function openUpgrade(type){
   const msg=document.getElementById('upgradeMsg');
-  if(type){
-    msg.textContent='Você atingiu o limite de '+(type==='photo'?getMaxPhotos()+' fotos':getMaxVideos()+' vídeos')+' da sua conta. Escolha abaixo como quer ampliar seu espaço.';
-  }else{
-    msg.textContent='Cada pessoa pode guardar até 5 fotos e 5 vídeos no plano gratuito. Escolha abaixo como quer ampliar seu espaço.';
-  }
+  if(type==='video'){msg.textContent=getMaxVideos()===0?'Vídeos não estão incluídos no plano gratuito. Escolha um plano para liberar a gravação e o envio de vídeos.':'Você atingiu o limite de '+getMaxVideos()+' vídeos da sua conta. Escolha abaixo como quer ampliar seu espaço.';}
+  else if(type==='photo'){msg.textContent='Você atingiu o limite de '+getMaxPhotos()+' fotos da sua conta. Escolha abaixo como quer ampliar seu espaço.';}
+  else{msg.textContent='O plano gratuito guarda até 3 fotos. Vídeos só ficam disponíveis depois que você contrata um plano.';}
   switchPriceTab(type==='video'?'video':'photo');
   document.getElementById('upgradeSheet').classList.add('show');
 }
